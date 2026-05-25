@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 from dbfread import DBF
 from openpyxl.styles import numbers
+from name_lookup import translate_name_series
 
 # --- Import and check status of all master files ---
 try:
@@ -483,15 +484,13 @@ def run_regular_data_app():
                             )
 
                         if "NAME" in out.columns:
-                            name_translation_dict, dictionary_error = load_name_dictionary()
-                            if not name_translation_dict:
-                                st.warning(f"Name dictionary unavailable: {dictionary_error}")
-                            else:
-                                out['NAME_MARAT'] = out['NAME'].apply(
-                                    lambda name: translate_full_name(
-                                        name,
-                                        name_translation_dict
-                                    )
+                            out['NAME_MARAT'], missing_names = translate_name_series(
+                                out['NAME'],
+                                os.path.dirname(__file__)
+                            )
+                            if missing_names:
+                                st.warning(
+                                    f"{missing_names} unique name words were not found in dic.py and were kept as-is."
                                 )
 
                         # Final Cleanup
@@ -512,7 +511,7 @@ def run_regular_data_app():
 
                         output = io.BytesIO()
 
-                        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
 
                             # Sheet 1: Structured Data
                             out.to_excel(
@@ -521,17 +520,12 @@ def run_regular_data_app():
                                 sheet_name="Structured"
                             )
 
+                            workbook = writer.book
                             ws = writer.sheets["Structured"]
-
-                            for col_idx, col_name in enumerate(out.columns, 1):
-
+                            text_format = workbook.add_format({"num_format": "@"})
+                            for col_idx, col_name in enumerate(out.columns):
                                 if col_name in SENSITIVE_FIELDS:
-
-                                    for row_idx in range(2, len(out) + 2):
-                                        ws.cell(
-                                            row=row_idx,
-                                            column=col_idx
-                                        ).number_format = '@'
+                                    ws.set_column(col_idx, col_idx, None, text_format)
 
                             # Sheet 2: Detailed Audit Log
                             audit_df.to_excel(
@@ -541,11 +535,9 @@ def run_regular_data_app():
                             )
 
                             ws_audit = writer.sheets["Audit_Log"]
-
-                            # Formatting Audit Sheet
-                            ws_audit.column_dimensions['B'].width = 15
-                            ws_audit.column_dimensions['C'].width = 15
-                            ws_audit.column_dimensions['D'].width = 30
+                            ws_audit.set_column("B:B", 15)
+                            ws_audit.set_column("C:C", 15)
+                            ws_audit.set_column("D:D", 30)
 
                         st.success("🎉 Structured Excel generated!")
 

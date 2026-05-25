@@ -280,20 +280,16 @@ def run_bsc_exam_app():
 
                 # --- Export to Excel ---
                 output = io.BytesIO()
-                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                     out.to_excel(writer, index=False, sheet_name="Structured")
                     audit_log.to_excel(writer, index=False, sheet_name="Audit_Log")
 
                     workbook = writer.book
-                    sheet = workbook["Structured"]
-
-                    header_row = [c.value for c in sheet[1]]
-                    if "CLASS" in header_row:
-                        class_col_letter = chr(65 + header_row.index("CLASS"))
-                        for cell in sheet[class_col_letter]:
-                            if cell.row == 1:
-                                continue
-                            cell.number_format = "0.00"
+                    sheet = writer.sheets["Structured"]
+                    if "CLASS" in out.columns:
+                        class_col_idx = out.columns.get_loc("CLASS")
+                        class_format = workbook.add_format({"num_format": "0.00"})
+                        sheet.set_column(class_col_idx, class_col_idx, None, class_format)
 
                 output.seek(0)
                 st.download_button(

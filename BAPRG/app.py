@@ -7,6 +7,7 @@ import importlib.util
 from dbfread import DBF
 from openpyxl.styles import numbers
 from deep_translator import GoogleTranslator
+from name_lookup import translate_name_series
 
 @st.cache_resource(show_spinner=False)
 def load_name_dictionary():
@@ -274,11 +275,12 @@ def run_ba_exam_app():
 
                 # --- Name Translation using dic.py ---
                 if "NAME" in out.columns:
-                    name_translation_dict, dictionary_error = load_name_dictionary()
-                    if not name_translation_dict:
-                        st.warning(f"Name dictionary unavailable: {dictionary_error}")
-                    else:
-                        out['NAME_MARAT'] = out['NAME'].apply(lambda name: translate_full_name(name, name_translation_dict))
+                    out['NAME_MARAT'], missing_names = translate_name_series(
+                        out['NAME'],
+                        os.path.dirname(__file__)
+                    )
+                    if missing_names:
+                        st.warning(f"{missing_names} unique name words were not found in dic.py and were kept as-is.")
 
                 # --- Subject Mapping Logic (B.A. specific) ---
                 def map_subjects(row):
@@ -344,20 +346,16 @@ def run_ba_exam_app():
 
                 # --- Export to Excel ---
                 output = io.BytesIO()
-                with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                     out.to_excel(writer, index=False, sheet_name="Structured")
                     audit_log.to_excel(writer, index=False, sheet_name="Audit_Log")
 
                     workbook = writer.book
-                    sheet = workbook["Structured"]
-
-                    header_row = [c.value for c in sheet[1]]
-                    if "CLASS" in header_row:
-                        class_col_letter = chr(65 + header_row.index("CLASS"))
-                        for cell in sheet[class_col_letter]:
-                            if cell.row == 1:
-                                continue
-                            cell.number_format = "0.00"
+                    sheet = writer.sheets["Structured"]
+                    if "CLASS" in out.columns:
+                        class_col_idx = out.columns.get_loc("CLASS")
+                        class_format = workbook.add_format({"num_format": "0.00"})
+                        sheet.set_column(class_col_idx, class_col_idx, None, class_format)
 
                 output.seek(0)
                 st.download_button(
