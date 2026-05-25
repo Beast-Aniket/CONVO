@@ -11,10 +11,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Premium Styling CSS
+# Custom premium styling CSS
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --app-bg: #0b111a;
+    --app-panel: #111827;
+    --app-panel-soft: #172033;
+    --app-border: #2f3b52;
+    --app-text: #f8fafc;
+    --app-muted: #cbd5e1;
+    --app-accent: #38bdf8;
+    --app-accent-strong: #fbbf24;
+}
 
 html, body, [class*="css"] {
     font-family: 'Inter', sans-serif;
@@ -22,29 +33,97 @@ html, body, [class*="css"] {
 
 h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', sans-serif;
+    color: var(--app-text);
+}
+
+.stApp {
+    background: var(--app-bg);
+    color: var(--app-text) !important;
+}
+
+.stApp p,
+.stApp li,
+.stApp label,
+.stApp span,
+.stApp div {
+    color: inherit;
 }
 
 /* Sidebar Styling */
 [data-testid="stSidebar"] {
-    background-color: #f8fafc;
-    border-right: 1px solid #e2e8f0;
+    background: var(--app-panel) !important;
+    border-right: 1px solid var(--app-border);
     padding-top: 10px;
+    color: var(--app-text) !important;
+}
+
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] div,
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] strong {
+    color: var(--app-text) !important;
+    opacity: 1 !important;
+}
+
+[data-testid="stSidebar"] small,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+    color: var(--app-muted) !important;
+    opacity: 1 !important;
+}
+
+.sidebar-brand {
+    text-align: center;
+    margin-top: 5px;
+    margin-bottom: 20px;
+}
+
+.sidebar-brand-icon {
+    font-size: 2.5rem;
+}
+
+.sidebar-brand-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    color: var(--app-text) !important;
+    margin: 5px 0 2px 0;
+    font-size: 1.25rem;
+}
+
+.sidebar-brand-subtitle {
+    color: var(--app-muted) !important;
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.sidebar-section-title {
+    color: var(--app-muted) !important;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
 }
 
 /* System Status Cards */
 .status-card {
-    background: white;
-    border: 1px solid #e2e8f0;
+    background: var(--app-panel-soft);
+    border: 1px solid var(--app-border);
     border-radius: 8px;
     padding: 12px;
     margin-bottom: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
     font-size: 0.85rem;
-    color: #334155;
+    color: var(--app-text) !important;
     transition: all 0.25s ease;
 }
+
+.status-card * {
+    color: var(--app-text) !important;
+}
 .status-card:hover {
-    box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+    border-color: #475569;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.24);
     transform: translateY(-1px);
 }
 
@@ -61,22 +140,43 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Custom Headings & Page Header */
 .main-header {
-    background: linear-gradient(135deg, #1e3a8a, #0f172a);
+    background: linear-gradient(135deg, #1e3a8a, #111827);
     padding: 25px;
     border-radius: 12px;
     margin-bottom: 30px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border: 1px solid #253a7a;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.25);
 }
 .main-header h1 {
-    color: white;
+    color: var(--app-text);
     margin: 0;
     font-size: 2.2rem;
     font-weight: 700;
 }
 .main-header p {
-    color: #93c5fd;
+    color: #bfdbfe;
     margin: 5px 0 0 0;
     font-size: 1rem;
+}
+
+[data-testid="stFileUploader"] section,
+[data-testid="stDataFrame"],
+[data-testid="stExpander"] details,
+[data-baseweb="select"] > div,
+.stTextInput input,
+.stNumberInput input,
+.stTextArea textarea {
+    background-color: var(--app-panel);
+    color: var(--app-text) !important;
+    border-color: var(--app-border);
+}
+
+[data-testid="stFileUploader"] button {
+    color: #0f172a !important;
+}
+
+.stAlert {
+    color: var(--app-text);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -89,16 +189,16 @@ sys.path.append(os.path.join(current_dir, 'BSCPRG'))
 # --- Sidebar Content ---
 st.sidebar.markdown(
     """
-    <div style="text-align: center; margin-top: 5px; margin-bottom: 20px;">
-        <span style="font-size: 2.5rem;">🎓</span>
-        <h2 style="font-family: 'Outfit', sans-serif; font-weight: 700; color: #1e293b; margin: 5px 0 2px 0; font-size: 1.25rem;">CONVOCATION PORTAL</h2>
-        <p style="color: #64748b; font-size: 0.8rem; margin: 0;">Data Mapping & Translation Suite</p>
+    <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">🎓</span>
+        <h2 class="sidebar-brand-title">CONVOCATION PORTAL</h2>
+        <p class="sidebar-brand-subtitle">Data Mapping & Translation Suite</p>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-st.sidebar.markdown("<h3 style='font-size: 0.9rem; color: #475569; margin-bottom: 10px;'>📂 APPLICATION MODULES</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 class='sidebar-section-title'>📂 APPLICATION MODULES</h3>", unsafe_allow_html=True)
 
 # Define modules mapping
 modules = {
@@ -117,7 +217,7 @@ choice = st.sidebar.radio(
 )
 
 # --- Dynamic System Status Sidebar Section ---
-st.sidebar.markdown("<h3 style='font-size: 0.9rem; color: #475569; margin-top: 25px; margin-bottom: 10px;'>🛠 SYSTEM STATUS</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 class='sidebar-section-title' style='margin-top: 25px;'>🛠 SYSTEM STATUS</h3>", unsafe_allow_html=True)
 
 # 1. dic.py Status
 dic_path = os.path.join(current_dir, "dic.py")
@@ -163,10 +263,10 @@ elif selected_module == "rle_rpv":
     rle_rpv = importlib.import_module("rle_rpv")
     rle_rpv.run_rle_rpv_app()
 elif selected_module == "ba":
-    baprg_app = importlib.import_module("BAPRG.APP")
+    baprg_app = importlib.import_module("BAPRG.app")
     baprg_app.run_ba_exam_app()
 elif selected_module == "bsc":
-    bscprg_app = importlib.import_module("BSCPRG.APP")
+    bscprg_app = importlib.import_module("BSCPRG.app")
     bscprg_app.run_bsc_exam_app()
 elif selected_module == "translate":
     translate_app = importlib.import_module("TRANSLATE")
