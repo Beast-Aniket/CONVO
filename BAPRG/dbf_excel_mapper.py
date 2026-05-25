@@ -78,7 +78,7 @@ if uploaded_file:
             else:
                 df = pd.read_excel(uploaded_file)
         st.success(f"✅ Loaded file with {len(df)} rows and {len(df.columns)} cols")
-        st.dataframe(df.head(), use_container_width=True)
+        st.dataframe(df.head(), width="stretch")
 
         # --- Audit Log ---
         df.columns = [str(c).strip() for c in df.columns]
@@ -101,7 +101,7 @@ if uploaded_file:
 
         df_filtered = df.drop(index=list(drop_index)).reset_index(drop=True)
         st.info(f"🧹 Filtered out {len(df) - len(df_filtered)} rows")
-        st.dataframe(audit_log.head(30), use_container_width=True)
+        st.dataframe(audit_log.head(30), width="stretch")
 
         # --- Column Mapping ---
         auto_map = {}

@@ -157,7 +157,7 @@ def run_regular_data_app():
                 t: s for t, s in AUTO_MAP_RULES.items() if s in df.columns
             }
 
-            st.dataframe(df.head(), use_container_width=True)
+            st.dataframe(df.head(), width="stretch")
 
             st.markdown("---")
             st.markdown("## 🔑 Step 2: Enter Program Information")
@@ -262,7 +262,7 @@ def run_regular_data_app():
             if st.button(
                 "✅ Generate Structured File",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 key="regular_generate_btn"
             ):
 
@@ -551,7 +551,7 @@ def run_regular_data_app():
 
                         st.dataframe(
                             out.head(50),
-                            use_container_width=True
+                            width="stretch"
                         )
 
                         st.download_button(
@@ -559,7 +559,7 @@ def run_regular_data_app():
                             data=output.getvalue(),
                             file_name="Structured_Output.xlsx",
                             mime="application/vnd.ms-excel",
-                            use_container_width=True,
+                            width="stretch",
                             key="regular_download_btn"
                         )
 

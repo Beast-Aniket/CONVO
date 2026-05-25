@@ -134,7 +134,7 @@ def run_rle_rpv_app():
                 else: df = pd.read_excel(uploaded_file); st.success(f"✅ Loaded as Excel with {len(df)} rows")
 
             st.session_state.mappings = {t: s for t, s in AUTO_MAP_RULES.items() if s in df.columns}
-            st.dataframe(df.head(), use_container_width=True)
+            st.dataframe(df.head(), width="stretch")
 
             st.markdown("---")
             st.markdown("## 🔑 Step 2: Enter Program Information")
@@ -191,7 +191,7 @@ def run_rle_rpv_app():
             st.markdown("---")
             st.markdown("## ⚙️ Step 4: Generate Structured File")
 
-            if st.button("✅ Generate Structured File", type="primary", use_container_width=True, key="rle_generate_btn"):
+            if st.button("✅ Generate Structured File", type="primary", width="stretch", key="rle_generate_btn"):
                 if not manual_prog_no:
                     st.error("Error: Please enter a Program Number in Step 2.")
                 else:
@@ -354,8 +354,8 @@ def run_rle_rpv_app():
                             ws_audit.column_dimensions['D'].width = 30 # Reason
                         
                         st.success("🎉 Structured Excel generated!")
-                        st.dataframe(out.head(50), use_container_width=True)
-                        st.download_button("📥 Download Structured_Output.xlsx", data=output.getvalue(), file_name="Structured_Output.xlsx", mime="application/vnd.ms-excel", use_container_width=True, key="rle_rpv_download_btn")
+                        st.dataframe(out.head(50), width="stretch")
+                        st.download_button("📥 Download Structured_Output.xlsx", data=output.getvalue(), file_name="Structured_Output.xlsx", mime="application/vnd.ms-excel", width="stretch", key="rle_rpv_download_btn")
 
         except Exception as e:
             st.error(f"An error occurred: {e}"); import traceback; st.code(traceback.format_exc())

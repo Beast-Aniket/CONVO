@@ -31,7 +31,7 @@ def run_fetch_app():
                 df = pd.read_excel(uploaded_file)
 
             st.success(f"✅ Loaded file with {len(df)} rows")
-            st.dataframe(df.head(10), use_container_width=True)
+            st.dataframe(df.head(10), width="stretch")
 
             if 'NAME_MARAT' not in df.columns:
                 st.error("❌ Column 'NAME_MARAT' not found in the uploaded file. Please make sure the column exists.")
@@ -56,7 +56,7 @@ def run_fetch_app():
             col1, col2 = st.columns(2)
             
             # Button to trigger translation
-            translate_btn = col1.button("🚀 Start Translation via Google Translate", key="start_fetch_translate_btn", type="primary", use_container_width=True)
+            translate_btn = col1.button("🚀 Start Translation via Google Translate", key="start_fetch_translate_btn", type="primary", width="stretch")
             
             if translate_btn:
                 progress_bar = st.progress(0)
@@ -92,7 +92,7 @@ def run_fetch_app():
                     file_name="new_dic.py",
                     mime="text/x-python",
                     key="fetch_download_btn",
-                    use_container_width=True
+                    width="stretch"
                 )
 
         except Exception as e:

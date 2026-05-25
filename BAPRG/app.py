@@ -182,7 +182,7 @@ def run_ba_exam_app():
                     df = pd.read_excel(uploaded_file)
                     
             st.success(f"✅ Loaded file with {len(df)} rows and {len(df.columns)} cols")
-            st.dataframe(df.head(), use_container_width=True)
+            st.dataframe(df.head(), width="stretch")
 
             # --- Audit Log & STRICT Filtering ---
             df.columns = [str(c).strip() for c in df.columns]
@@ -207,7 +207,7 @@ def run_ba_exam_app():
 
             df_filtered = df.drop(index=list(drop_index)).reset_index(drop=True)
             st.info(f"🧹 Filtered out {len(df) - len(df_filtered)} rows")
-            st.dataframe(audit_log.head(30), use_container_width=True)
+            st.dataframe(audit_log.head(30), width="stretch")
 
             # --- Column Mapping ---
             auto_map = {}
@@ -234,7 +234,7 @@ def run_ba_exam_app():
             abbr_value = st.text_input("Enter ABBR (e.g. BA, BSC, BCOM)", "BA", key="ba_abbr_input")
             per_value = st.text_input("Enter PER (e.g. 78.90 or PASS)", "", key="ba_per_input")
 
-            if st.button("✅ Generate Structured File", type="primary", use_container_width=True, key="ba_generate_btn"):
+            if st.button("✅ Generate Structured File", type="primary", width="stretch", key="ba_generate_btn"):
                 out = pd.DataFrame("", index=df_filtered.index, columns=STRUCTURE_COLUMNS)
 
                 # Apply mapped columns
