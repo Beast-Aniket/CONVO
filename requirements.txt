@@ -5,3 +5,4 @@ dbfread
 openpyxl
 deep-translator
 xlrd
+xlsxwriter

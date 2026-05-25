@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
+import os
 import zipfile
 import re
 import unicodedata
@@ -29,7 +30,7 @@ def clean_text(text):
 # -------------------------
 try:
     try:
-        from dic import CUSTOM_MAP
+        CUSTOM_MAP = {}
     except ImportError:
         from dic import name_translation_dict as CUSTOM_MAP
     
@@ -50,6 +51,31 @@ except Exception as e:
     DICT_LOOKUP = {}
     DICT_KEYS = set()
     dict_status = "❌ Dictionary load failed"
+
+def dictionary_status():
+    dict_path = os.path.join(os.path.dirname(__file__), "dic.py")
+    if os.path.exists(dict_path):
+        dict_size_mb = os.path.getsize(dict_path) / (1024 * 1024)
+        return f"dic.py available ({dict_size_mb:.1f} MB). It loads only when processing files."
+    return "dic.py not found"
+
+@st.cache_resource(show_spinner=False)
+def load_dictionary_lookup():
+    try:
+        try:
+            from dic import CUSTOM_MAP as loaded_map
+        except ImportError:
+            from dic import name_translation_dict as loaded_map
+
+        dict_lookup = {}
+        for k, v in loaded_map.items():
+            clean_key = clean_text(k)
+            if clean_key:
+                dict_lookup[clean_key] = str(v).strip()
+
+        return dict_lookup, set(dict_lookup.keys()), None
+    except Exception as exc:
+        return {}, set(), str(exc)
 
 # Session cache to store API-transliterated names and avoid lag
 TRANSLIT_CACHE = {}
@@ -104,6 +130,8 @@ def process_row(name_eng, name_mar_existing):
     # 1. Safety check for empty/NaN
     if pd.isna(name_eng) or str(name_eng).strip() == "":
         return ""
+
+    dict_lookup, dict_keys, _ = load_dictionary_lookup()
         
     # Keep original for reconstruction, but work with normalized version for matching
     original_text = str(name_eng)
@@ -118,7 +146,7 @@ def process_row(name_eng, name_mar_existing):
     words_found_in_dict = False
     for t in tokens:
         if re.search(r'\w', t): # If it's a word
-            if clean_text(t) in DICT_KEYS:
+            if clean_text(t) in dict_keys:
                 words_found_in_dict = True
                 break
     
@@ -139,9 +167,9 @@ def process_row(name_eng, name_mar_existing):
             # clean_text handles Case, Unicode, and Stripping for the Lookup
             token_key = clean_text(token)
             
-            if token_key in DICT_LOOKUP:
+            if token_key in dict_lookup:
                 # Found match -> Use Marathi
-                translated_tokens.append(DICT_LOOKUP[token_key])
+                translated_tokens.append(dict_lookup[token_key])
             else:
                 # No match -> Transliterate using Google Input Tools fallback
                 translated_tokens.append(transliterate_word(token))
@@ -154,7 +182,7 @@ def process_row(name_eng, name_mar_existing):
 def run_translate_app():
     # Sidebar Info
     st.sidebar.markdown("### 🛠 System Status")
-    st.sidebar.info(dict_status)
+    st.sidebar.info(dictionary_status())
     st.sidebar.markdown("---")
     st.sidebar.markdown("**Features Active:**")
     st.sidebar.markdown("- ✅ Case Insensitivity")

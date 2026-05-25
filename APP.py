@@ -1,4 +1,5 @@
 import streamlit as st
+import importlib
 import os
 import sys
 
@@ -85,14 +86,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, 'BAPRG'))
 sys.path.append(os.path.join(current_dir, 'BSCPRG'))
 
-# Import Module Apps
-import regular_data_app
-import rle_rpv
-import TRANSLATE as translate_app
-import FETCH as fetch_app
-import BAPRG.APP as baprg_app
-import BSCPRG.APP as bscprg_app
-
 # --- Sidebar Content ---
 st.sidebar.markdown(
     """
@@ -127,29 +120,26 @@ choice = st.sidebar.radio(
 st.sidebar.markdown("<h3 style='font-size: 0.9rem; color: #475569; margin-top: 25px; margin-bottom: 10px;'>🛠 SYSTEM STATUS</h3>", unsafe_allow_html=True)
 
 # 1. dic.py Status
-try:
-    from dic import name_translation_dict
-    dic_status = f'<div class="status-card"><span class="status-indicator success"></span><strong>dic.py:</strong> Loaded ({len(name_translation_dict):,} words)</div>'
-except Exception:
-    dic_status = '<div class="status-card"><span class="status-indicator warning"></span><strong>dic.py:</strong> Missing or failed</div>'
+dic_path = os.path.join(current_dir, "dic.py")
+if os.path.exists(dic_path):
+    dic_size_mb = os.path.getsize(dic_path) / (1024 * 1024)
+    dic_status = f'<div class="status-card"><span class="status-indicator success"></span><strong>dic.py:</strong> Available ({dic_size_mb:.1f} MB)</div>'
+else:
+    dic_status = '<div class="status-card"><span class="status-indicator warning"></span><strong>dic.py:</strong> Missing</div>'
 
 # 2. program_master.xlsx Status
-try:
-    from program_master import load_program_master
-    p_master, err = load_program_master()
-    if p_master:
-        program_status = f'<div class="status-card"><span class="status-indicator success"></span><strong>program_master:</strong> Loaded ({len(p_master)} programs)</div>'
-    else:
-        program_status = f'<div class="status-card"><span class="status-indicator error"></span><strong>program_master:</strong> Not found</div>'
-except Exception:
-    program_status = '<div class="status-card"><span class="status-indicator error"></span><strong>program_master:</strong> Error loading</div>'
+program_path = os.path.join(current_dir, "program_master.xlsx")
+if os.path.exists(program_path):
+    program_status = '<div class="status-card"><span class="status-indicator success"></span><strong>program_master:</strong> Available</div>'
+else:
+    program_status = '<div class="status-card"><span class="status-indicator error"></span><strong>program_master:</strong> Not found</div>'
 
 # 3. college_master.py Status
-try:
-    from college_master import college_master
-    college_status = f'<div class="status-card"><span class="status-indicator success"></span><strong>college_master:</strong> Loaded ({len(college_master)} colleges)</div>'
-except Exception:
-    college_status = '<div class="status-card"><span class="status-indicator warning"></span><strong>college_master:</strong> Failed to load</div>'
+college_path = os.path.join(current_dir, "college_master.py")
+if os.path.exists(college_path):
+    college_status = '<div class="status-card"><span class="status-indicator success"></span><strong>college_master:</strong> Available</div>'
+else:
+    college_status = '<div class="status-card"><span class="status-indicator warning"></span><strong>college_master:</strong> Missing</div>'
 
 st.sidebar.markdown(dic_status + program_status + college_status, unsafe_allow_html=True)
 
@@ -167,14 +157,20 @@ st.markdown(
 selected_module = modules[choice]
 
 if selected_module == "regular":
+    regular_data_app = importlib.import_module("regular_data_app")
     regular_data_app.run_regular_data_app()
 elif selected_module == "rle_rpv":
+    rle_rpv = importlib.import_module("rle_rpv")
     rle_rpv.run_rle_rpv_app()
 elif selected_module == "ba":
+    baprg_app = importlib.import_module("BAPRG.APP")
     baprg_app.run_ba_exam_app()
 elif selected_module == "bsc":
+    bscprg_app = importlib.import_module("BSCPRG.APP")
     bscprg_app.run_bsc_exam_app()
 elif selected_module == "translate":
+    translate_app = importlib.import_module("TRANSLATE")
     translate_app.run_translate_app()
 elif selected_module == "fetch":
+    fetch_app = importlib.import_module("FETCH")
     fetch_app.run_fetch_app()

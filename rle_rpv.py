@@ -22,15 +22,20 @@ except ImportError:
 
 from deep_translator import GoogleTranslator 
 
-try:
-    from dic import name_translation_dict
-    DICTIONARY_LOADED = True
-except ImportError:
-    name_translation_dict = {}
-    DICTIONARY_LOADED = False
+@st.cache_data(show_spinner=False)
+def get_program_master_cache():
+    return load_program_master()
 
-# Load program master and display status
-PROGRAM_MASTER_DICT, PROGRAM_MASTER_ERROR = load_program_master()
+@st.cache_resource(show_spinner=False)
+def load_name_dictionary():
+    try:
+        from dic import name_translation_dict
+        return name_translation_dict, None
+    except Exception as exc:
+        return {}, str(exc)
+
+def dictionary_available():
+    return os.path.exists(os.path.join(os.path.dirname(__file__), "dic.py"))
 
 STRUCTURE_COLUMNS = [ "LotNo", "Conv ID", "Faculty", "PRNERN", "ProgType", "APPL_NO", "SEAT_NO", "COLL_NO", "COLL_NAME", "COLL_NAMEM", "StudLastName", "StudFirstName", "StudMidddleName", "StudMotherName", "NAME", "NAME_MARAT", "SEX", "ABBR", "CLASS", "MCLASS", "SUB1", "SUB1_NAME", "SUB1_NAMEM", "SUB2", "SUB2_NAME", "SUB2_NAMEM", "DEGNM", "MDEGNM", "SUBDEGNM", "MSUBDEGNM", "PER", "MPER"]
 AUTO_MAP_RULES = { "PRNERN": "PRN", "SEAT_NO": "SEAT_NO", "COLL_NO": "COLL_NO", "NAME": "NAME", "SEX": "SEX" }
@@ -98,12 +103,15 @@ def translate_full_name(name, d):
     return " ".join(translated_words)
 
 def run_rle_rpv_app():
-    if DICTIONARY_LOADED:
+    program_master_dict, program_master_error = get_program_master_cache()
+    PROGRAM_MASTER_ERROR = program_master_error
+
+    if dictionary_available():
         st.sidebar.success("✅ Name dictionary (dic.py) loaded.")
     else:
         st.sidebar.warning("⚠️ `dic.py` not found. Name translation disabled.")
 
-    if PROGRAM_MASTER_DICT:
+    if program_master_dict:
         st.sidebar.success("✅ Program master (program_master.xlsx) loaded.")
     else:
         st.sidebar.error(f"❌ {PROGRAM_MASTER_ERROR}")
@@ -137,8 +145,8 @@ def run_rle_rpv_app():
             program_details_found = False
             selected_program_details = {}
 
-            if manual_prog_no and PROGRAM_MASTER_DICT:
-                fetched_details = get_program_details(manual_prog_no, PROGRAM_MASTER_DICT)
+            if manual_prog_no and program_master_dict:
+                fetched_details = get_program_details(manual_prog_no, program_master_dict)
                 
                 if fetched_details:
                     st.success(f"✅ Program '{manual_prog_no}' data loaded successfully!")
@@ -311,8 +319,12 @@ def run_rle_rpv_app():
                             out["COLL_NAMEM"] = out["COLL_NO"].map(lambda x: get_college_by_no(x)["COLL_NAMEM"])
                         
                         # Name Translation
-                        if DICTIONARY_LOADED and "NAME" in out.columns:
-                            out['NAME_MARAT'] = out['NAME'].apply(lambda name: translate_full_name(name, name_translation_dict))
+                        if "NAME" in out.columns:
+                            name_translation_dict, dictionary_error = load_name_dictionary()
+                            if not name_translation_dict:
+                                st.warning(f"Name dictionary unavailable: {dictionary_error}")
+                            else:
+                                out['NAME_MARAT'] = out['NAME'].apply(lambda name: translate_full_name(name, name_translation_dict))
 
                         # Final Cleanup
                         out = out.fillna('')

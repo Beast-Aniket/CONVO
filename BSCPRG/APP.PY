@@ -8,13 +8,21 @@ from dbfread import DBF
 from openpyxl.styles import numbers
 from deep_translator import GoogleTranslator
 
-# --- Dictionary Load for Name Translation ---
-try:
-    from dic import name_translation_dict
-    DICTIONARY_LOADED = True
-except ImportError:
-    name_translation_dict = {}
-    DICTIONARY_LOADED = False
+@st.cache_resource(show_spinner=False)
+def load_name_dictionary():
+    try:
+        from dic import name_translation_dict
+        return name_translation_dict, None
+    except Exception as exc:
+        return {}, str(exc)
+
+def dictionary_available():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = os.path.dirname(current_dir)
+    return (
+        os.path.exists(os.path.join(root_dir, "dic.py"))
+        or os.path.exists(os.path.join(current_dir, "dic.py"))
+    )
 
 STRUCTURE_COLUMNS = [
     "LotNo", "Conv ID", "Faculty", "PRNERN", "ProgType", "ProgNO", "SEAT_NO",
@@ -92,7 +100,7 @@ def run_bsc_exam_app():
     spec.loader.exec_module(subjects_marathi)
 
     # --- UI Status ---
-    if DICTIONARY_LOADED:
+    if dictionary_available():
         st.sidebar.success("✅ Name dictionary (dic.py) loaded.")
     else:
         st.sidebar.warning("⚠️ `dic.py` not found. Name translation disabled.")
