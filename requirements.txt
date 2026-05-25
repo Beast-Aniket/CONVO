@@ -1,0 +1,7 @@
+streamlit
+pandas
+numpy
+dbfread
+openpyxl
+deep-translator
+xlrd
