@@ -7,7 +7,8 @@ import os
 from datetime import datetime
 from dbfread import DBF
 from openpyxl.styles import numbers
-from name_lookup import translate_name_series
+from data_utils import clean_identifier_columns
+from name_lookup import translate_name_series, universal_dictionary_available
 
 # --- Import and check status of all master files ---
 try:
@@ -27,16 +28,8 @@ from deep_translator import GoogleTranslator
 def get_program_master_cache():
     return load_program_master()
 
-@st.cache_resource(show_spinner=False)
-def load_name_dictionary():
-    try:
-        from dic import name_translation_dict
-        return name_translation_dict, None
-    except Exception as exc:
-        return {}, str(exc)
-
 def dictionary_available():
-    return os.path.exists(os.path.join(os.path.dirname(__file__), "dic.py"))
+    return universal_dictionary_available()
 
 STRUCTURE_COLUMNS = [ "LotNo", "Conv ID", "Faculty", "PRNERN", "ProgType", "APPL_NO", "SEAT_NO", "COLL_NO", "COLL_NAME", "COLL_NAMEM", "StudLastName", "StudFirstName", "StudMidddleName", "StudMotherName", "NAME", "NAME_MARAT", "SEX", "ABBR", "CLASS", "MCLASS", "SUB1", "SUB1_NAME", "SUB1_NAMEM", "SUB2", "SUB2_NAME", "SUB2_NAMEM", "DEGNM", "MDEGNM", "SUBDEGNM", "MSUBDEGNM", "PER", "MPER"]
 AUTO_MAP_RULES = { "PRNERN": "PRN", "SEAT_NO": "SEAT_NO", "COLL_NO": "COLL_NO", "NAME": "NAME", "SEX": "SEX" }
@@ -109,9 +102,9 @@ def run_regular_data_app():
     PROGRAM_MASTER_ERROR = program_master_error
 
     if dictionary_available():
-        st.sidebar.success("✅ Name dictionary (dic.py) loaded.")
+        st.sidebar.success("✅ Universal dictionary (dic.py) loaded.")
     else:
-        st.sidebar.warning("⚠️ `dic.py` not found. Name translation disabled.")
+        st.sidebar.warning("⚠️ Universal `dic.py` not found. Name translation disabled.")
 
     if program_master_dict:
         st.sidebar.success("✅ Program master (program_master.xlsx) loaded.")
@@ -151,7 +144,7 @@ def run_regular_data_app():
                         os.unlink(tmp_path)
 
                 else:
-                    df = pd.read_excel(uploaded_file)
+                    df = pd.read_excel(uploaded_file, dtype=str)
                     st.success(f"✅ Loaded as Excel with {len(df)} rows")
 
             st.session_state.mappings = {
@@ -484,14 +477,9 @@ def run_regular_data_app():
                             )
 
                         if "NAME" in out.columns:
-                            out['NAME_MARAT'], missing_names = translate_name_series(
-                                out['NAME'],
-                                os.path.dirname(__file__)
-                            )
+                            out['NAME_MARAT'], missing_names = translate_name_series(out['NAME'])
                             if missing_names:
-                                st.warning(
-                                    f"{missing_names} unique name words were not found in dic.py and were kept as-is."
-                                )
+                                st.info(f"{missing_names} unique name words used Google Input Tools fallback.")
 
                         # Final Cleanup
                         out = out.fillna('')
@@ -501,9 +489,7 @@ def run_regular_data_app():
                             fill_value=''
                         )
 
-                        for f in SENSITIVE_FIELDS:
-                            if f in out.columns:
-                                out[f] = out[f].astype(str).str.strip()
+                        clean_identifier_columns(out, SENSITIVE_FIELDS)
 
                         # ---------------------------------------------------------
                         # EXCEL WRITING

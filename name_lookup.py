@@ -1,28 +1,43 @@
 import ast
+import json
 import os
+import re
+import unicodedata
+import urllib.parse
+import urllib.request
 
-import pandas as pd
 import streamlit as st
 
 
-def _dictionary_paths(base_dir):
-    candidates = [
-        os.path.join(base_dir, "dic.py"),
-        os.path.join(os.path.dirname(base_dir), "dic.py"),
-    ]
-    seen = set()
-    for path in candidates:
-        path = os.path.abspath(path)
-        if path not in seen and os.path.exists(path):
-            seen.add(path)
-            yield path
+WORD_RE = re.compile(r"[A-Za-z]+")
+
+
+def universal_dictionary_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "dic.py")
+
+
+def universal_dictionary_available():
+    return os.path.exists(universal_dictionary_path())
+
+
+def universal_dictionary_status():
+    path = universal_dictionary_path()
+    if not os.path.exists(path):
+        return "dic.py not found"
+    size_mb = os.path.getsize(path) / (1024 * 1024)
+    return f"dic.py available ({size_mb:.1f} MB)"
+
+
+def _clean_word(word):
+    return unicodedata.normalize("NFKC", str(word)).strip().upper()
 
 
 def _words_from_names(names):
     words = set()
     for name in names.dropna().astype(str):
-        for word in name.upper().strip().split():
-            if word and any(ch.isalpha() for ch in word):
+        for match in WORD_RE.finditer(name):
+            word = _clean_word(match.group(0))
+            if word:
                 words.add(word)
     return words
 
@@ -36,7 +51,7 @@ def _parse_dictionary_line(line):
     if key_end == -1:
         return None, None
 
-    key = stripped[1:key_end].upper()
+    key = _clean_word(stripped[1:key_end])
     value_part = stripped[stripped.find(":", key_end) + 1:].strip().rstrip(",")
 
     try:
@@ -48,50 +63,103 @@ def _parse_dictionary_line(line):
 
 
 @st.cache_data(show_spinner=False)
-def _lookup_words(words_key, base_dir):
+def _lookup_words(words_key):
     pending = set(words_key)
     found = {}
 
     if not pending:
         return found
 
-    for path in _dictionary_paths(base_dir):
-        with open(path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                stripped = line.lstrip()
-                if not stripped.startswith('"'):
-                    continue
+    path = universal_dictionary_path()
+    if not os.path.exists(path):
+        return found
 
-                key_end = stripped.find('"', 1)
-                if key_end == -1:
-                    continue
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.lstrip()
+            if not stripped.startswith('"'):
+                continue
 
-                key = stripped[1:key_end].upper()
-                if key not in pending:
-                    continue
+            key_end = stripped.find('"', 1)
+            if key_end == -1:
+                continue
 
-                _, value = _parse_dictionary_line(stripped)
-                if value is None:
-                    continue
+            key = _clean_word(stripped[1:key_end])
+            if key not in pending:
+                continue
 
-                found[key] = value
-                pending.remove(key)
-                if not pending:
-                    return found
+            _, value = _parse_dictionary_line(stripped)
+            if value is None:
+                continue
+
+            found[key] = value
+            pending.remove(key)
+            if not pending:
+                return found
 
     return found
 
 
-def translate_name_series(names, base_dir):
+def _transliterate_word_uncached(word):
+    if not word:
+        return ""
+
+    try:
+        url = "https://inputtools.google.com/request?" + urllib.parse.urlencode({
+            "text": word,
+            "itc": "mr-t-i0-und",
+            "num": "1",
+            "cp": "0",
+            "cs": "1",
+            "ie": "utf-8",
+            "oe": "utf-8",
+            "app": "test",
+        })
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=3) as response:
+            result = json.loads(response.read().decode("utf-8"))
+            if result[0] == "SUCCESS":
+                return result[1][0][1][0]
+    except Exception:
+        pass
+
+    return word
+
+
+@st.cache_data(show_spinner=False)
+def _transliterate_words(words_key):
+    return {word: _transliterate_word_uncached(word) for word in words_key}
+
+
+def translate_name_series(names, existing_marathi=None, preserve_existing=False):
     words = _words_from_names(names)
-    lookup = _lookup_words(tuple(sorted(words)), os.path.abspath(base_dir))
+    lookup = _lookup_words(tuple(sorted(words)))
+    missing_words = words - set(lookup)
+    fallback = _transliterate_words(tuple(sorted(missing_words)))
 
-    def translate_name(name):
-        translated = []
-        for word in str(name).upper().strip().split():
-            translated.append(lookup.get(word, word))
-        return " ".join(translated)
+    existing_values = None
+    if existing_marathi is not None:
+        existing_values = existing_marathi.fillna("").astype(str)
 
-    translated_names = names.fillna("").astype(str).apply(translate_name)
-    missing_count = len(words - set(lookup))
-    return translated_names, missing_count
+    def translate_text(text, existing_text=""):
+        text = "" if text is None else str(text)
+        if not text.strip():
+            return ""
+
+        row_words = {_clean_word(match.group(0)) for match in WORD_RE.finditer(text)}
+        if preserve_existing and existing_text.strip() and row_words.isdisjoint(lookup):
+            return existing_text
+
+        def replace_match(match):
+            original = match.group(0)
+            key = _clean_word(original)
+            return lookup.get(key) or fallback.get(key) or original
+
+        return WORD_RE.sub(replace_match, text)
+
+    if existing_values is None:
+        translated = names.fillna("").astype(str).apply(translate_text)
+    else:
+        translated = names.fillna("").astype(str).combine(existing_values, translate_text)
+
+    return translated, len(missing_words)

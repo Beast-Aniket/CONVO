@@ -3,27 +3,21 @@ import pandas as pd
 import numpy as np
 import io
 import os
+import sys
 import importlib.util
 from dbfread import DBF
 from openpyxl.styles import numbers
 from deep_translator import GoogleTranslator
-from name_lookup import translate_name_series
 
-@st.cache_resource(show_spinner=False)
-def load_name_dictionary():
-    try:
-        from dic import name_translation_dict
-        return name_translation_dict, None
-    except Exception as exc:
-        return {}, str(exc)
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from data_utils import clean_identifier_columns
+from name_lookup import translate_name_series, universal_dictionary_available
 
 def dictionary_available():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    root_dir = os.path.dirname(current_dir)
-    return (
-        os.path.exists(os.path.join(root_dir, "dic.py"))
-        or os.path.exists(os.path.join(current_dir, "dic.py"))
-    )
+    return universal_dictionary_available()
 
 STRUCTURE_COLUMNS = [
     "LotNo", "Conv ID", "Faculty", "PRNERN", "ProgType", "ProgNO", "SEAT_NO",
@@ -156,9 +150,9 @@ def run_ba_exam_app():
 
     # --- UI Status ---
     if dictionary_available():
-        st.sidebar.success("✅ Name dictionary (dic.py) loaded.")
+        st.sidebar.success("✅ Universal dictionary (dic.py) loaded.")
     else:
-        st.sidebar.warning("⚠️ `dic.py` not found. Name translation disabled.")
+        st.sidebar.warning("⚠️ Universal `dic.py` not found. Name translation disabled.")
 
     # --- File Upload ---
     st.markdown("## 📁 File Upload (B.A.)")
@@ -180,7 +174,7 @@ def run_ba_exam_app():
                 elif file_name.endswith(".csv"):
                     df = pd.read_csv(uploaded_file)
                 else:
-                    df = pd.read_excel(uploaded_file)
+                    df = pd.read_excel(uploaded_file, dtype=str)
                     
             st.success(f"✅ Loaded file with {len(df)} rows and {len(df.columns)} cols")
             st.dataframe(df.head(), width="stretch")
@@ -275,12 +269,9 @@ def run_ba_exam_app():
 
                 # --- Name Translation using dic.py ---
                 if "NAME" in out.columns:
-                    out['NAME_MARAT'], missing_names = translate_name_series(
-                        out['NAME'],
-                        os.path.dirname(__file__)
-                    )
+                    out['NAME_MARAT'], missing_names = translate_name_series(out['NAME'])
                     if missing_names:
-                        st.warning(f"{missing_names} unique name words were not found in dic.py and were kept as-is.")
+                        st.info(f"{missing_names} unique name words used Google Input Tools fallback.")
 
                 # --- Subject Mapping Logic (B.A. specific) ---
                 def map_subjects(row):
@@ -343,6 +334,8 @@ def run_ba_exam_app():
                 except ImportError:
                     out["COLL_NAME"] = ""
                     out["COLL_NAMEM"] = ""
+
+                clean_identifier_columns(out, SENSITIVE_FIELDS)
 
                 # --- Export to Excel ---
                 output = io.BytesIO()

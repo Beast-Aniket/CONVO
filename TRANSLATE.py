@@ -5,6 +5,7 @@ import os
 import zipfile
 import re
 import unicodedata
+from name_lookup import translate_name_series, universal_dictionary_status
 
 # -------------------------
 # HELPER: Normalization
@@ -25,57 +26,8 @@ def clean_text(text):
     text = unicodedata.normalize('NFKC', text)
     return text.strip().upper()
 
-# -------------------------
-# Import custom dictionary
-# -------------------------
-try:
-    try:
-        CUSTOM_MAP = {}
-    except ImportError:
-        from dic import name_translation_dict as CUSTOM_MAP
-    
-    # OPTIMIZATION:
-    # Pre-process dictionary keys using the same 'clean_text' logic
-    # This ensures "  baid  " in dict matches "Baid" in file.
-    DICT_LOOKUP = {}
-    for k, v in CUSTOM_MAP.items():
-        clean_key = clean_text(k)
-        if clean_key:
-            DICT_LOOKUP[clean_key] = str(v).strip()
-            
-    DICT_KEYS = set(DICT_LOOKUP.keys())
-    dict_status = f"✅ Loaded {len(DICT_LOOKUP)} words from dic.py"
-except Exception as e:
-    import traceback
-    st.error(f"Failed to load custom dictionary from dic.py: {e}")
-    DICT_LOOKUP = {}
-    DICT_KEYS = set()
-    dict_status = "❌ Dictionary load failed"
-
 def dictionary_status():
-    dict_path = os.path.join(os.path.dirname(__file__), "dic.py")
-    if os.path.exists(dict_path):
-        dict_size_mb = os.path.getsize(dict_path) / (1024 * 1024)
-        return f"dic.py available ({dict_size_mb:.1f} MB). It loads only when processing files."
-    return "dic.py not found"
-
-@st.cache_resource(show_spinner=False)
-def load_dictionary_lookup():
-    try:
-        try:
-            from dic import CUSTOM_MAP as loaded_map
-        except ImportError:
-            from dic import name_translation_dict as loaded_map
-
-        dict_lookup = {}
-        for k, v in loaded_map.items():
-            clean_key = clean_text(k)
-            if clean_key:
-                dict_lookup[clean_key] = str(v).strip()
-
-        return dict_lookup, set(dict_lookup.keys()), None
-    except Exception as exc:
-        return {}, set(), str(exc)
+    return universal_dictionary_status()
 
 # Session cache to store API-transliterated names and avoid lag
 TRANSLIT_CACHE = {}
@@ -131,53 +83,12 @@ def process_row(name_eng, name_mar_existing):
     if pd.isna(name_eng) or str(name_eng).strip() == "":
         return ""
 
-    dict_lookup, dict_keys, _ = load_dictionary_lookup()
-        
-    # Keep original for reconstruction, but work with normalized version for matching
-    original_text = str(name_eng)
-    
-    # 2. SMART TOKENIZATION
-    # Split by anything that is NOT a word char (letters/numbers/underscore).
-    # Capturing group () keeps the separators in the list.
-    tokens = re.split(r'(\W+)', original_text)
-    
-    # Check if ANY meaningful word exists in Dictionary (for existing Marathi logic)
-    # We use our clean_text helper to match the dictionary keys exactly
-    words_found_in_dict = False
-    for t in tokens:
-        if re.search(r'\w', t): # If it's a word
-            if clean_text(t) in dict_keys:
-                words_found_in_dict = True
-                break
-    
-    # 3. LOGIC: Preserve Existing Marathi?
-    # If we have valid Marathi AND the dictionary doesn't have any corrections for this specific name
-    # then we trust the existing translation to save processing/correction.
-    has_existing_marathi = pd.notna(name_mar_existing) and str(name_mar_existing).strip() != ""
-    
-    if has_existing_marathi and not words_found_in_dict:
-        return name_mar_existing
-
-    # 4. BUILD NEW TRANSLATION
-    translated_tokens = []
-    
-    for token in tokens:
-        # Check if the token is a word (contains letters/numbers)
-        if re.search(r'\w', token):
-            # clean_text handles Case, Unicode, and Stripping for the Lookup
-            token_key = clean_text(token)
-            
-            if token_key in dict_lookup:
-                # Found match -> Use Marathi
-                translated_tokens.append(dict_lookup[token_key])
-            else:
-                # No match -> Transliterate using Google Input Tools fallback
-                translated_tokens.append(transliterate_word(token))
-        else:
-            # Punctuation/Spaces -> Keep exactly as is (preserves formatting)
-            translated_tokens.append(token)
-            
-    return "".join(translated_tokens)
+    translated, _ = translate_name_series(
+        pd.Series([name_eng]),
+        pd.Series([name_mar_existing]),
+        preserve_existing=True,
+    )
+    return translated.iloc[0]
 
 def run_translate_app():
     # Sidebar Info
@@ -192,11 +103,11 @@ def run_translate_app():
 
     st.markdown("""
     ### How it works
-    This tool is **Offline** and **Robust**. It safely handles:
+    This tool uses the universal root `dic.py` first, then Google Input Tools for missing English words. It safely handles:
     1.  **Messy Inputs:** `Rahul   Baid` (extra spaces) or `(Rahul)` (brackets).
     2.  **Case Issues:** `baid`, `BAID`, `Baid` all match.
     3.  **Weird Characters:** Handles invisible spaces or full-width characters.
-    4.  **Logic:** Only translates if the word exists in `dic.py`.
+    4.  **Fallback:** Words not found in `dic.py` are transliterated online.
     """)
 
     uploaded_files = st.file_uploader("📤 Upload Excel files (.xlsx)", type=["xlsx"], accept_multiple_files=True, key="translate_uploader")
@@ -222,10 +133,13 @@ def run_translate_app():
                         if "NAME_MARAT" not in df.columns:
                             df["NAME_MARAT"] = ""
                         
-                        # Apply Translation
-                        df["NAME_MARAT"] = df.apply(
-                            lambda row: process_row(row["NAME"], row["NAME_MARAT"]), axis=1
+                        df["NAME_MARAT"], fallback_count = translate_name_series(
+                            df["NAME"],
+                            df["NAME_MARAT"],
+                            preserve_existing=True,
                         )
+                        if fallback_count:
+                            st.info(f"{fallback_count} unique name words used Google Input Tools fallback.")
                         
                         # Save
                         output = io.BytesIO()

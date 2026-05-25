@@ -14,18 +14,20 @@ import pandas as pd
 import numpy as np
 import io
 import os
+import sys
 from dbfread import DBF
 from openpyxl.styles import numbers
 from deep_translator import GoogleTranslator
 import subjects_marathi
 
-# --- Dictionary Load for Name Translation ---
-try:
-    from dic import name_translation_dict
-    DICTIONARY_LOADED = True
-except ImportError:
-    name_translation_dict = {}
-    DICTIONARY_LOADED = False
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from data_utils import clean_identifier_columns
+from name_lookup import translate_name_series, universal_dictionary_available
+
+DICTIONARY_LOADED = universal_dictionary_available()
 
 STRUCTURE_COLUMNS = [
     "LotNo", "Conv ID", "Faculty", "PRNERN", "ProgType", "ProgNO", "SEAT_NO",
@@ -41,9 +43,9 @@ st.set_page_config(page_title="DBF/Excel Auto Mapper - B.A.", layout="wide", pag
 
 # --- UI Status ---
 if DICTIONARY_LOADED:
-    st.sidebar.success("✅ Name dictionary (dic.py) loaded.")
+    st.sidebar.success("✅ Universal dictionary (dic.py) loaded.")
 else:
-    st.sidebar.warning("⚠️ `dic.py` not found. Name translation disabled.")
+    st.sidebar.warning("⚠️ Universal `dic.py` not found. Name translation disabled.")
 
 # --- Fixed Values (B.A.) ---
 faculty_options = ["Interdisciplinary Studies", "Humanities"]
@@ -125,7 +127,7 @@ if uploaded_file:
             elif file_name.endswith(".csv"):
                 df = pd.read_csv(uploaded_file)
             else:
-                df = pd.read_excel(uploaded_file)
+                df = pd.read_excel(uploaded_file, dtype=str)
                 
         st.success(f"✅ Loaded file with {len(df)} rows and {len(df.columns)} cols")
         st.dataframe(df.head(), width="stretch")
@@ -216,9 +218,11 @@ if uploaded_file:
             out["MPER"] = translate_to_marathi_text(per_value)
             out["LotNo"] = np.arange(1, len(out)+1)
 
-            # --- Name Translation using dic.py ---
-            if DICTIONARY_LOADED and "NAME" in out.columns:
-                out['NAME_MARAT'] = out['NAME'].apply(lambda name: translate_full_name(name, name_translation_dict))
+            # --- Name Translation using universal dic.py ---
+            if "NAME" in out.columns:
+                out['NAME_MARAT'], missing_names = translate_name_series(out['NAME'])
+                if missing_names:
+                    st.info(f"{missing_names} unique name words used Google Input Tools fallback.")
 
             # --- Subject Mapping Logic (B.A. specific) ---
             def map_subjects(row):
@@ -282,22 +286,20 @@ if uploaded_file:
                 out["COLL_NAME"] = ""
                 out["COLL_NAMEM"] = ""
 
+            clean_identifier_columns(out, SENSITIVE_FIELDS)
+
             # --- Export to Excel ---
             output = io.BytesIO()
-            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 out.to_excel(writer, index=False, sheet_name="Structured")
                 audit_log.to_excel(writer, index=False, sheet_name="Audit_Log")
 
                 workbook = writer.book
-                sheet = workbook["Structured"]
-
-                header_row = [c.value for c in sheet[1]]
-                if "CLASS" in header_row:
-                    class_col_letter = chr(65 + header_row.index("CLASS"))
-                    for cell in sheet[class_col_letter]:
-                        if cell.row == 1:
-                            continue
-                        cell.number_format = "0.00"
+                sheet = writer.sheets["Structured"]
+                if "CLASS" in out.columns:
+                    class_col_idx = out.columns.get_loc("CLASS")
+                    class_format = workbook.add_format({"num_format": "0.00"})
+                    sheet.set_column(class_col_idx, class_col_idx, None, class_format)
 
             output.seek(0)
             st.download_button(

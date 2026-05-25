@@ -28,7 +28,7 @@ def run_fetch_app():
             if file_name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
-                df = pd.read_excel(uploaded_file)
+                df = pd.read_excel(uploaded_file, dtype=str)
 
             st.success(f"✅ Loaded file with {len(df)} rows")
             st.dataframe(df.head(10), width="stretch")
