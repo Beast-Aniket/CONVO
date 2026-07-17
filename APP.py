@@ -185,6 +185,7 @@ h1, h2, h3, h4, h5, h6 {
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, 'BAPRG'))
 sys.path.append(os.path.join(current_dir, 'BSCPRG'))
+sys.path.append(os.path.join(current_dir, 'NEP'))
 
 # --- Sidebar Content ---
 st.sidebar.markdown(
@@ -206,6 +207,7 @@ modules = {
     "🔄 RLE_RPVDATA": "rle_rpv",
     "🎓 BA EXAM": "ba",
     "🔬 BSC EXAM": "bsc",
+    "🎓 NEP EXAM": "nep",
     "📖 TRANSLATE ANY DATA": "translate",
     "🔍 FETCH NAMES": "fetch"
 }
@@ -268,6 +270,9 @@ elif selected_module == "ba":
 elif selected_module == "bsc":
     bscprg_app = importlib.import_module("BSCPRG.app")
     bscprg_app.run_bsc_exam_app()
+elif selected_module == "nep":
+    nep_app = importlib.import_module("NEP.NEP")
+    nep_app.run_nep_app()
 elif selected_module == "translate":
     translate_app = importlib.import_module("TRANSLATE")
     translate_app.run_translate_app()

@@ -139,17 +139,32 @@ def run_regular_data_app():
                         df = pd.DataFrame(
                             iter(DBF(tmp_path, load=True, char_decode_errors="ignore"))
                         )
+                        df.columns = [str(c).strip().upper() for c in df.columns]
                         st.success(f"✅ Loaded as DBF with {len(df)} rows")
                     finally:
                         os.unlink(tmp_path)
 
                 else:
                     df = pd.read_excel(uploaded_file, dtype=str)
+                    df.columns = [str(c).strip().upper() for c in df.columns]
                     st.success(f"✅ Loaded as Excel with {len(df)} rows")
 
-            st.session_state.mappings = {
-                t: s for t, s in AUTO_MAP_RULES.items() if s in df.columns
-            }
+            # Robust, case-insensitive mapping logic
+            mappings = {}
+            for target, source in AUTO_MAP_RULES.items():
+                if source in df.columns:
+                    mappings[target] = source
+                elif target in df.columns:
+                    mappings[target] = target
+                else:
+                    matched = None
+                    for c in df.columns:
+                        if c.strip().upper() == source.upper() or c.strip().upper() == target.upper():
+                            matched = c
+                            break
+                    if matched:
+                        mappings[target] = matched
+            st.session_state.mappings = mappings
 
             st.dataframe(df.head(), width="stretch")
 
@@ -300,7 +315,7 @@ def run_regular_data_app():
                             audit_df['RES_Val'] = s_res
                             audit_df['FREM_Val'] = s_frem
 
-                            cond_rslt = s_rslt.isin(["P", "S", "I"])
+                            cond_rslt = s_rslt.isin(["P", "S", "I", "PASS"])
                             cond_res = s_res.isin(["RRA", ""])
                             cond_frem = s_frem == ""
 
@@ -316,7 +331,7 @@ def run_regular_data_app():
                             audit_df.loc[~cond_res, 'Reason'] = "RES is not RRA or Blank"
 
                             audit_df.loc[~cond_rslt, 'Status'] = "Excluded"
-                            audit_df.loc[~cond_rslt, 'Reason'] = "RSLT is not P, S, or I"
+                            audit_df.loc[~cond_rslt, 'Reason'] = "RSLT is not P, S, I, or PASS"
 
                             out = out.loc[mask].reset_index(drop=True)
 
