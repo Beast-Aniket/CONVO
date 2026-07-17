@@ -102,7 +102,9 @@ def load_data(uploaded_file):
         finally:
             os.unlink(tmp_path)
     else:
-        return pd.read_e# -------------------------
+        return pd.read_excel(uploaded_file)
+
+# -------------------------
 # Main App
 # -------------------------
 def run_nep_app():
