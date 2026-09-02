@@ -7,14 +7,14 @@ import sys
 import importlib.util
 from dbfread import DBF
 from openpyxl.styles import numbers
-from deep_translator import GoogleTranslator
-
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from data_utils import clean_identifier_columns
-from name_lookup import translate_name_series, universal_dictionary_available
+from core.data_utils import clean_identifier_columns
+from core.name_lookup import translate_name_series, transliterate_text, universal_dictionary_available
+from core.college_master import get_college_by_no
+from modules.subjects_marathi import ba_subject_dict as subject_dict
 
 def dictionary_available():
     return universal_dictionary_available()
@@ -47,69 +47,10 @@ def to_marathi_digits(x):
         return str(x)
 
 def translate_to_marathi_text(value):
-    if pd.isna(value) or str(value).strip() == "":
-        return ""
-    try:
-        return GoogleTranslator(source="auto", target="mr").translate(str(value))
-    except Exception:
-        return to_marathi_digits(value)
+    return transliterate_text(value)
 
 def normalize_colname(name):
     return str(name).strip().lower().replace(" ", "").replace("_", "")
-
-# Session cache to store API-transliterated names and avoid lag
-TRANSLIT_CACHE = {}
-
-def transliterate_word(word):
-    word = str(word).upper().strip()
-    if not word:
-        return ""
-    if word in TRANSLIT_CACHE:
-        return TRANSLIT_CACHE[word]
-    
-    # Check if word contains any alphabets (ignore pure digits/special chars)
-    if not any(c.isalpha() for c in word):
-        return word
-        
-    try:
-        import urllib.request
-        import urllib.parse
-        import json
-        url = "https://inputtools.google.com/request?" + urllib.parse.urlencode({
-            "text": word,
-            "itc": "mr-t-i0-und",
-            "num": "1",
-            "cp": "0",
-            "cs": "1",
-            "ie": "utf-8",
-            "oe": "utf-8",
-            "app": "test"
-        })
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
-            res = json.loads(response.read().decode('utf-8'))
-            if res[0] == 'SUCCESS':
-                transliterated = res[1][0][1][0]
-                TRANSLIT_CACHE[word] = transliterated
-                return transliterated
-    except Exception:
-        pass
-    
-    return word
-
-def translate_full_name(name, d):
-    if not isinstance(name, str):
-        return ""
-    words = str(name).strip().split()
-    translated_words = []
-    for w in words:
-        w_upper = w.upper()
-        if w_upper in d:
-            translated_words.append(d[w_upper])
-        else:
-            # Fallback to Google Input Tools transliteration
-            translated_words.append(transliterate_word(w))
-    return " ".join(translated_words)
 
 def find_best_match(target_col, source_cols):
     # Aliases specifically prioritized for the B.A. data files

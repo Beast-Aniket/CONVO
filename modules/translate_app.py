@@ -5,7 +5,7 @@ import os
 import zipfile
 import re
 import unicodedata
-from name_lookup import translate_name_series, universal_dictionary_status
+from core.name_lookup import translate_name_series, universal_dictionary_status
 
 # -------------------------
 # HELPER: Normalization
@@ -28,67 +28,6 @@ def clean_text(text):
 
 def dictionary_status():
     return universal_dictionary_status()
-
-# Session cache to store API-transliterated names and avoid lag
-TRANSLIT_CACHE = {}
-
-def transliterate_word(word):
-    word = str(word).upper().strip()
-    if not word:
-        return ""
-    if word in TRANSLIT_CACHE:
-        return TRANSLIT_CACHE[word]
-    
-    # Check if word contains any alphabets (ignore pure digits/special chars)
-    if not any(c.isalpha() for c in word):
-        return word
-        
-    try:
-        import urllib.request
-        import urllib.parse
-        import json
-        url = "https://inputtools.google.com/request?" + urllib.parse.urlencode({
-            "text": word,
-            "itc": "mr-t-i0-und",
-            "num": "1",
-            "cp": "0",
-            "cs": "1",
-            "ie": "utf-8",
-            "oe": "utf-8",
-            "app": "test"
-        })
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
-            res = json.loads(response.read().decode('utf-8'))
-            if res[0] == 'SUCCESS':
-                transliterated = res[1][0][1][0]
-                TRANSLIT_CACHE[word] = transliterated
-                return transliterated
-    except Exception:
-        pass
-    
-    return word
-
-# -------------------------
-# CORE TRANSLATION LOGIC
-# -------------------------
-def process_row(name_eng, name_mar_existing):
-    """
-    Robust translation logic:
-    1. Preserves original formatting (spaces/punctuation).
-    2. Translates individual words if found in dictionary.
-    3. Handles mixed data types gracefully.
-    """
-    # 1. Safety check for empty/NaN
-    if pd.isna(name_eng) or str(name_eng).strip() == "":
-        return ""
-
-    translated, _ = translate_name_series(
-        pd.Series([name_eng]),
-        pd.Series([name_mar_existing]),
-        preserve_existing=True,
-    )
-    return translated.iloc[0]
 
 def run_translate_app():
     # Sidebar Info

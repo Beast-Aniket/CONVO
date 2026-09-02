@@ -4,25 +4,19 @@ import numpy as np
 import io
 import tempfile
 import os
+import sys
 from datetime import datetime
 from dbfread import DBF
 from openpyxl.styles import numbers
-from data_utils import clean_identifier_columns
-from name_lookup import translate_name_series, universal_dictionary_available
 
-# --- Import and check status of all master files ---
-try:
-    from college_master import get_college_by_no
-except ImportError:
-    def get_college_by_no(x): return {"COLL_NAME": "", "COLL_NAMEM": ""}
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
-try:
-    from program_master import load_program_master, get_program_details
-except ImportError:
-    def load_program_master(): return {}, "program_master.xlsx not found"
-    def get_program_details(p, m): return None
-
-from deep_translator import GoogleTranslator 
+from core.data_utils import clean_identifier_columns
+from core.name_lookup import translate_name_series, transliterate_text, universal_dictionary_available
+from core.college_master import get_college_by_no
+from core.program_master import load_program_master, get_program_details
 
 @st.cache_data(show_spinner=False)
 def get_program_master_cache():
@@ -42,60 +36,6 @@ def to_marathi_digits(x):
 
 def safe_num_series(s): 
     return pd.to_numeric(s, errors="coerce").fillna(0.0)
-
-# Session cache to store API-transliterated names and avoid lag
-TRANSLIT_CACHE = {}
-
-def transliterate_word(word):
-    word = str(word).upper().strip()
-    if not word:
-        return ""
-    if word in TRANSLIT_CACHE:
-        return TRANSLIT_CACHE[word]
-    
-    # Check if word contains any alphabets (ignore pure digits/special chars)
-    if not any(c.isalpha() for c in word):
-        return word
-        
-    try:
-        import urllib.request
-        import urllib.parse
-        import json
-        url = "https://inputtools.google.com/request?" + urllib.parse.urlencode({
-            "text": word,
-            "itc": "mr-t-i0-und",
-            "num": "1",
-            "cp": "0",
-            "cs": "1",
-            "ie": "utf-8",
-            "oe": "utf-8",
-            "app": "test"
-        })
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=3) as response:
-            res = json.loads(response.read().decode('utf-8'))
-            if res[0] == 'SUCCESS':
-                transliterated = res[1][0][1][0]
-                TRANSLIT_CACHE[word] = transliterated
-                return transliterated
-    except Exception:
-        pass
-    
-    return word
-
-def translate_full_name(name, d):
-    if not isinstance(name, str):
-        return ""
-    words = str(name).strip().split()
-    translated_words = []
-    for w in words:
-        w_upper = w.upper()
-        if w_upper in d:
-            translated_words.append(d[w_upper])
-        else:
-            # Fallback to Google Input Tools transliteration
-            translated_words.append(transliterate_word(w))
-    return " ".join(translated_words)
 
 def run_regular_data_app():
     program_master_dict, program_master_error = get_program_master_cache()
@@ -121,12 +61,28 @@ def run_regular_data_app():
     uploaded_file = st.file_uploader("Choose a DBF or Excel file", type=None, key="regular_data_uploader")
 
     if uploaded_file:
+        file_name_lower = uploaded_file.name.lower()
+        is_dbf_ext = file_name_lower.endswith(".dbf")
+        is_excel_ext = file_name_lower.endswith((".xlsx", ".xls", ".xlsm", ".xlsb", ".csv"))
+        
+        default_index = 0 if is_dbf_ext else 1
+
         file_type_choice = st.radio(
             "How should this file be processed?",
             ('As a DBF file', 'As an Excel file'),
+            index=default_index,
             horizontal=True,
             key="regular_data_file_type"
         )
+
+        # 1. Immediate friendly validation for file type mismatch
+        if file_type_choice == 'As an Excel file' and is_dbf_ext:
+            st.error(f"⚠️ **File Format Mismatch**: You uploaded a DBF file (`{uploaded_file.name}`) but selected **'As an Excel file'**. Please select **'As a DBF file'** above to proceed.")
+            return
+
+        if file_type_choice == 'As a DBF file' and is_excel_ext:
+            st.error(f"⚠️ **File Format Mismatch**: You uploaded an Excel file (`{uploaded_file.name}`) but selected **'As a DBF file'**. Please select **'As an Excel file'** above to proceed.")
+            return
 
         try:
             with st.spinner("Processing file..."):
@@ -141,13 +97,25 @@ def run_regular_data_app():
                         )
                         df.columns = [str(c).strip().upper() for c in df.columns]
                         st.success(f"✅ Loaded as DBF with {len(df)} rows")
+                    except Exception as dbf_err:
+                        st.error(f"❌ **Failed to read DBF file**: `{uploaded_file.name}`. Please ensure the file is a valid database file.")
+                        with st.expander("Technical details"):
+                            st.caption(str(dbf_err))
+                        return
                     finally:
-                        os.unlink(tmp_path)
+                        if os.path.exists(tmp_path):
+                            os.unlink(tmp_path)
 
                 else:
-                    df = pd.read_excel(uploaded_file, dtype=str)
-                    df.columns = [str(c).strip().upper() for c in df.columns]
-                    st.success(f"✅ Loaded as Excel with {len(df)} rows")
+                    try:
+                        df = pd.read_excel(uploaded_file, dtype=str)
+                        df.columns = [str(c).strip().upper() for c in df.columns]
+                        st.success(f"✅ Loaded as Excel with {len(df)} rows")
+                    except Exception as excel_err:
+                        st.error(f"❌ **Failed to read Excel file**: `{uploaded_file.name}`. Please ensure the file is a valid Excel spreadsheet.")
+                        with st.expander("Technical details"):
+                            st.caption(str(excel_err))
+                        return
 
             # Robust, case-insensitive mapping logic
             mappings = {}
@@ -455,20 +423,9 @@ def run_regular_data_app():
 
                         # Translation
                         if st.session_state.manual_per:
-
                             per_text = st.session_state.manual_per
-
                             out['PER'] = per_text
-
-                            try:
-                                out['MPER'] = GoogleTranslator(
-                                    source='auto',
-                                    target='mr'
-                                ).translate(per_text)
-
-                            except Exception as e:
-                                st.warning(f"Translation failed: {e}")
-                                out['MPER'] = to_marathi_digits(per_text)
+                            out['MPER'] = transliterate_text(per_text)
 
                         # --- UPDATED: Copy selected subject columns ---
                         for target_col, source_col in subject_column_mapping.items():
@@ -557,10 +514,10 @@ def run_regular_data_app():
                         )
 
         except Exception as e:
-            st.error(f"An error occurred: {e}")
-
-            import traceback
-            st.code(traceback.format_exc())
+            st.error(f"❌ An error occurred while processing the data: {e}")
+            with st.expander("Technical details"):
+                import traceback
+                st.code(traceback.format_exc())
 
     else:
         st.info("👋 Welcome! Please upload a file to begin.")

@@ -181,10 +181,10 @@ h1, h2, h3, h4, h5, h6 {
 </style>
 """, unsafe_allow_html=True)
 
-# Add subdirectories to sys.path to allow clean imports
+# Add project root directory to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(current_dir, 'BAPRG'))
-sys.path.append(os.path.join(current_dir, 'BSCPRG'))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
 
 # --- Sidebar Content ---
 st.sidebar.markdown(
@@ -221,7 +221,8 @@ choice = st.sidebar.radio(
 st.sidebar.markdown("<h3 class='sidebar-section-title' style='margin-top: 25px;'>🛠 SYSTEM STATUS</h3>", unsafe_allow_html=True)
 
 # 1. dic.py Status
-dic_path = os.path.join(current_dir, "dic.py")
+from core.name_lookup import universal_dictionary_path
+dic_path = universal_dictionary_path()
 if os.path.exists(dic_path):
     dic_size_mb = os.path.getsize(dic_path) / (1024 * 1024)
     dic_status = f'<div class="status-card"><span class="status-indicator success"></span><strong>dic.py:</strong> Available ({dic_size_mb:.1f} MB)</div>'
@@ -229,14 +230,15 @@ else:
     dic_status = '<div class="status-card"><span class="status-indicator warning"></span><strong>dic.py:</strong> Missing</div>'
 
 # 2. program_master.xlsx Status
-program_path = os.path.join(current_dir, "program_master.xlsx")
+from core.program_master import get_program_master_path
+program_path = get_program_master_path("program_master.xlsx")
 if os.path.exists(program_path):
     program_status = '<div class="status-card"><span class="status-indicator success"></span><strong>program_master:</strong> Available</div>'
 else:
     program_status = '<div class="status-card"><span class="status-indicator error"></span><strong>program_master:</strong> Not found</div>'
 
 # 3. college_master.py Status
-college_path = os.path.join(current_dir, "college_master.py")
+college_path = os.path.join(current_dir, "core", "college_master.py")
 if os.path.exists(college_path):
     college_status = '<div class="status-card"><span class="status-indicator success"></span><strong>college_master:</strong> Available</div>'
 else:
@@ -258,23 +260,23 @@ st.markdown(
 selected_module = modules[choice]
 
 if selected_module == "regular":
-    regular_data_app = importlib.import_module("regular_data_app")
+    regular_data_app = importlib.import_module("modules.regular_data_app")
     regular_data_app.run_regular_data_app()
 elif selected_module == "rle_rpv":
-    rle_rpv = importlib.import_module("rle_rpv")
+    rle_rpv = importlib.import_module("modules.rle_rpv_app")
     rle_rpv.run_rle_rpv_app()
 elif selected_module == "ba":
-    baprg_app = importlib.import_module("BAPRG.app")
-    baprg_app.run_ba_exam_app()
+    ba_app = importlib.import_module("modules.ba_exam_app")
+    ba_app.run_ba_exam_app()
 elif selected_module == "bsc":
-    bscprg_app = importlib.import_module("BSCPRG.app")
-    bscprg_app.run_bsc_exam_app()
+    bsc_app = importlib.import_module("modules.bsc_exam_app")
+    bsc_app.run_bsc_exam_app()
 elif selected_module == "nep":
-    nep_app = importlib.import_module("NEP.NEP")
-    nep_app.run_nep_app()
+    nep_app = importlib.import_module("modules.nep_exam_app")
+    nep_app.run_nep_exam_app()
 elif selected_module == "translate":
-    translate_app = importlib.import_module("TRANSLATE")
+    translate_app = importlib.import_module("modules.translate_app")
     translate_app.run_translate_app()
 elif selected_module == "fetch":
-    fetch_app = importlib.import_module("FETCH")
+    fetch_app = importlib.import_module("modules.fetch_app")
     fetch_app.run_fetch_app()

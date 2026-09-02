@@ -7,14 +7,14 @@ import sys
 import importlib.util
 from dbfread import DBF
 from openpyxl.styles import numbers
-from deep_translator import GoogleTranslator
-
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from data_utils import clean_identifier_columns
-from name_lookup import universal_dictionary_available
+from core.data_utils import clean_identifier_columns
+from core.name_lookup import translate_name_series, transliterate_text, universal_dictionary_available
+from core.college_master import get_college_by_no
+from modules.subjects_marathi import bsc_subject_dict as subject_dict
 
 def dictionary_available():
     return universal_dictionary_available()
@@ -47,12 +47,7 @@ def to_marathi_digits(x):
         return str(x)
 
 def translate_to_marathi_text(value):
-    if pd.isna(value) or str(value).strip() == "":
-        return ""
-    try:
-        return GoogleTranslator(source="auto", target="mr").translate(str(value))
-    except Exception:
-        return to_marathi_digits(value)
+    return transliterate_text(value)
 
 def normalize_colname(name):
     return str(name).strip().lower().replace(" ", "").replace("_", "")
@@ -205,6 +200,12 @@ def run_bsc_exam_app():
 
                 out["MPER"] = translate_to_marathi_text(per_value)
                 out["LotNo"] = np.arange(1, len(out)+1)
+
+                # --- Name Translation using universal dic.py + Google Input Tools ---
+                if "NAME" in out.columns:
+                    out['NAME_MARAT'], missing_names = translate_name_series(out['NAME'])
+                    if missing_names:
+                        st.info(f"{missing_names} unique name words used Google Input Tools fallback.")
 
                 # --- Subject Mapping (Updated logic for strict matches & B.Sc.) ---
                 def map_subjects(row):

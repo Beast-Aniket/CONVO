@@ -3,43 +3,22 @@ import pandas as pd
 import numpy as np
 import io
 import os
+import sys
 import zipfile
 import tempfile
 import re
 from datetime import datetime
 from dbfread import DBF
 from openpyxl.styles import numbers
-from deep_translator import GoogleTranslator 
-
-# --- Import and check status of all master files ---
-import sys
-import os
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from name_lookup import translate_name_series
+from core.name_lookup import translate_name_series, transliterate_text
+from core.college_master import get_college_by_no
+from core.program_master import load_nep_program_master as load_program_master, get_program_details
 
-try:
-    from college_master import get_college_by_no
-except ImportError:
-    def get_college_by_no(x): return {"COLL_NAME": "", "COLL_NAMEM": ""}
-
-# --- Load program master dynamically from this directory ---
-import importlib.util
-nep_dir = os.path.dirname(os.path.abspath(__file__))
-spec = importlib.util.spec_from_file_location("nep_program_master", os.path.join(nep_dir, "program_master.py"))
-nep_program_master = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(nep_program_master)
-load_program_master = nep_program_master.load_program_master
-
-# Load program master
-PROGRAM_MASTER_DICT, PROGRAM_MASTER_ERROR = load_program_master()
-
-# -------------------------
-# Configuration
-# -------------------------
 STRUCTURE_COLUMNS = [ "LotNo", "Conv ID", "Faculty", "PRNERN", "ProgType", "APPL_NO", "SEAT_NO", "COLL_NO", "COLL_NAME", "COLL_NAMEM", "StudLastName", "StudFirstName", "StudMidddleName", "StudMotherName", "NAME", "NAME_MARAT", "SEX", "ABBR", "CLASS", "MCLASS", "SUB1", "SUB1_NAME", "SUB1_NAMEM", "SUB2", "SUB2_NAME", "SUB2_NAMEM", "DEGNM", "MDEGNM", "SUBDEGNM", "MSUBDEGNM", "PER", "MPER"]
 
 AUTO_MAP_RULES = { 
@@ -51,8 +30,6 @@ AUTO_MAP_RULES = {
 }
 
 SENSITIVE_FIELDS = ["PRNERN", "APPL_NO", "SEAT_NO"]
-
-st.set_page_config(page_title="Bulk Data Processor", layout="wide", page_icon="🎓")
 
 # -------------------------
 # Helpers
@@ -107,7 +84,7 @@ def load_data(uploaded_file):
 # -------------------------
 # Main App
 # -------------------------
-def run_nep_app():
+def run_nep_exam_app():
     st.title("🎓 Bulk Excel Processor")
 
     if PROGRAM_MASTER_ERROR:
@@ -210,10 +187,7 @@ def run_nep_app():
                             # Translations
                             if manual_per:
                                 out['PER'] = manual_per
-                                try:
-                                    out['MPER'] = GoogleTranslator(source='auto', target='mr').translate(manual_per)
-                                except:
-                                    out['MPER'] = to_marathi_digits(manual_per)
+                                out['MPER'] = transliterate_text(manual_per)
 
                             if "NAME" in out.columns:
                                 out['NAME_MARAT'], _ = translate_name_series(out['NAME'])

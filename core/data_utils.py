@@ -1,12 +1,9 @@
 from decimal import Decimal, InvalidOperation
 import re
-
 import pandas as pd
-
 
 INTEGER_FLOAT_RE = re.compile(r"^[+-]?\d+\.0+$")
 SCIENTIFIC_RE = re.compile(r"^[+-]?\d+(?:\.\d+)?[eE][+-]?\d+$")
-
 
 def clean_identifier_value(value):
     if pd.isna(value):
@@ -29,10 +26,8 @@ def clean_identifier_value(value):
 
     return text
 
-
 def clean_identifier_series(series):
     return series.apply(clean_identifier_value).astype(str)
-
 
 def clean_identifier_columns(df, columns):
     for column in columns:
