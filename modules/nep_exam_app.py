@@ -84,8 +84,14 @@ def load_data(uploaded_file):
 # -------------------------
 # Main App
 # -------------------------
+@st.cache_data(show_spinner=False)
+def get_nep_program_master_cache():
+    return load_program_master()
+
 def run_nep_exam_app():
     st.title("🎓 Bulk Excel Processor")
+
+    PROGRAM_MASTER_DICT, PROGRAM_MASTER_ERROR = get_nep_program_master_cache()
 
     if PROGRAM_MASTER_ERROR:
         st.error(PROGRAM_MASTER_ERROR)
@@ -117,11 +123,10 @@ def run_nep_exam_app():
                         status_text.text(f"Processing: {file_name}...")
                         progress_bar.progress((i + 1) / len(uploaded_files))
 
-                        if prog_no not in PROGRAM_MASTER_DICT:
+                        program_details = get_program_details(prog_no, PROGRAM_MASTER_DICT)
+                        if not program_details:
                             skipped_files.append(f"{file_name} (ID '{prog_no}' not in Master)")
                             continue
-
-                        program_details = PROGRAM_MASTER_DICT[prog_no]
 
                         try:
                             df = load_data(file)
@@ -224,6 +229,8 @@ def run_nep_exam_app():
                     use_container_width=True
                 )
 
+run_nep_app = run_nep_exam_app
+
 if __name__ == "__main__":
     st.set_page_config(page_title="Bulk Data Processor", layout="wide", page_icon="🎓")
-    run_nep_app()
+    run_nep_exam_app()
