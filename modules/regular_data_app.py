@@ -274,32 +274,40 @@ def run_regular_data_app():
                             audit_df['SEAT_NO'] = "N/A (Mapping Missing)"
 
                         if {'rslt', 'res', 'frem'}.issubset(df_ci.columns):
-
-                            s_rslt = df_ci["rslt"].astype(str).str.strip().str.upper().replace("NAN", "")
-                            s_res = df_ci["res"].astype(str).str.strip().str.upper().replace("NAN", "")
-                            s_frem = df_ci["frem"].astype(str).str.strip().str.upper().replace("NAN", "")
+                            s_rslt = df_ci["rslt"].fillna("").astype(str).str.strip().str.upper().replace({"NAN": "", "NONE": ""})
+                            s_res = df_ci["res"].fillna("").astype(str).str.strip().str.upper().replace({"NAN": "", "NONE": ""})
+                            s_frem = df_ci["frem"].fillna("").astype(str).str.strip().str.upper().replace({"NAN": "", "NONE": ""})
 
                             audit_df['RSLT_Val'] = s_rslt
                             audit_df['RES_Val'] = s_res
                             audit_df['FREM_Val'] = s_frem
 
-                            cond_rslt = s_rslt.isin(["P", "S", "I", "PASS"])
-                            cond_res = s_res.isin(["RRA", ""])
+                            # Result must be Pass
+                            cond_rslt = s_rslt.isin(["P", "S", "I", "PASS", "PASS CLASS", "FIRST CLASS", "SECOND CLASS"])
+
+                            # Final remark must be blank
                             cond_frem = s_frem == ""
+
+                            # RES Remark: Accept only Blank and RRA. Exclude RLE, RPV, ABS, or any other remarks.
+                            is_blank_res = s_res == ""
+                            is_rra_res = (s_res == "RRA") | (s_res.str.contains(r"\bRRA\b", regex=True))
+                            is_excluded_remark = s_res.str.contains(r"RLE|RPV|ABS|ADC|FAIL", regex=True)
+
+                            cond_res = (is_blank_res | is_rra_res) & (~is_excluded_remark)
 
                             mask = cond_rslt & cond_res & cond_frem
 
                             audit_df['Status'] = "Included"
-                            audit_df['Reason'] = "Valid"
+                            audit_df['Reason'] = "Valid (Blank or RRA Remark with Passing Result)"
 
                             audit_df.loc[~cond_frem, 'Status'] = "Excluded"
                             audit_df.loc[~cond_frem, 'Reason'] = "FREM is not empty"
 
                             audit_df.loc[~cond_res, 'Status'] = "Excluded"
-                            audit_df.loc[~cond_res, 'Reason'] = "RES is not RRA or Blank"
+                            audit_df.loc[~cond_res, 'Reason'] = "RES is not Blank or RRA (RLE/RPV/Other Remark Excluded)"
 
                             audit_df.loc[~cond_rslt, 'Status'] = "Excluded"
-                            audit_df.loc[~cond_rslt, 'Reason'] = "RSLT is not P, S, I, or PASS"
+                            audit_df.loc[~cond_rslt, 'Reason'] = "RSLT is not Pass (P/S/I/PASS)"
 
                             out = out.loc[mask].reset_index(drop=True)
 
