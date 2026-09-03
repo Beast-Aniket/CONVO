@@ -90521,7 +90521,7 @@ name_translation_dict = {
 "sate": "साटे",
 "sawliha": "सावलीहा",
 "sube": "सुबे",
-"taksha": "तक्ष",
+"taksha": "तक्षा",
 "ubbu": "उब्बू",
 "vratin": "व्राटिन",
 "wamiq": "वामिक",

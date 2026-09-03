@@ -204,6 +204,7 @@ st.sidebar.markdown("<h3 class='sidebar-section-title'>📂 APPLICATION MODULES<
 modules = {
     "📊 REGULAR DATA": "regular",
     "🔄 RLE_RPVDATA": "rle_rpv",
+    "📋 RRA STUDENTS DATA": "rra",
     "🎓 BA EXAM": "ba",
     "🔬 BSC EXAM": "bsc",
     "🎓 NEP EXAM": "nep",
@@ -265,6 +266,9 @@ if selected_module == "regular":
 elif selected_module == "rle_rpv":
     rle_rpv = importlib.import_module("modules.rle_rpv_app")
     rle_rpv.run_rle_rpv_app()
+elif selected_module == "rra":
+    rra_app = importlib.import_module("modules.rra_exam_app")
+    rra_app.run_rra_exam_app()
 elif selected_module == "ba":
     ba_app = importlib.import_module("modules.ba_exam_app")
     ba_app.run_ba_exam_app()
